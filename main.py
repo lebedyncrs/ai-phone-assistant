@@ -1,9 +1,6 @@
-from fastapi import FastAPI, Query, Path, HTTPException, Request, Depends, status
-from fastapi.responses import RedirectResponse
+from fastapi import FastAPI, Query, HTTPException
 import uvicorn
 from datetime import datetime
-from typing import Optional
-import os
 
 from providers.twilio_api import get_latest_call
 from providers.google_api import search_contacts, get_calendar_events
