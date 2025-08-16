@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # If modifying these scopes, delete the file token.json.
-SCOPES = ["https://www.googleapis.com/auth/contacts.readonly"]
+SCOPES = ["https://www.googleapis.com/auth/contacts.readonly", "https://www.googleapis.com/auth/calendar.readonly"]
 
 
 def main():
