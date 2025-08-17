@@ -1,0 +1,37 @@
+services:
+  # FastAPI Application
+  api:
+    build: .
+    container_name: fastapi-app-local
+    restart: always
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./storage:/app/storage
+    networks:
+      - web
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api-local.rule=Host(`api.localhost`)"
+      - "traefik.http.routers.api-local.entrypoints=web"
+      - "traefik.http.services.api-local.loadbalancer.server.port=8000"
+
+  # Traefik Reverse Proxy (simplified for local development)
+  traefik:
+    image: traefik:v2.10
+    container_name: traefik-local
+    restart: always
+    ports:
+      - "80:80"
+      - "8080:8080"  # Traefik dashboard
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/traefik.local.yml:/etc/traefik/traefik.yml:ro
+    networks:
+      - web
+    depends_on:
+      - api
+
+networks:
+  web:
+    external: false

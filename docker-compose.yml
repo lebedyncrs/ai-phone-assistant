@@ -8,6 +8,8 @@ services:
     restart: always
     environment:
       - PYTHONUNBUFFERED=1
+    volumes:
+      - ./storage:/app/storage
     networks:
       - web
     labels:

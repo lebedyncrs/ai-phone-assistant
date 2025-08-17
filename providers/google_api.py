@@ -23,6 +23,18 @@ def get_google_service(service_name: str, version: str):
     if os.path.exists(TOKEN_FILE):
         creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
 
+    # If credentials exist but are expired and have a refresh token
+    if creds and creds.expired and creds.refresh_token:
+        try:
+            creds.refresh(Request())
+            # Save the refreshed credentials back to the token file
+            with open(TOKEN_FILE, 'w') as token:
+                token.write(creds.to_json())
+            print("Token has been refreshed and saved.")
+        except Exception as e:
+            print(f"Error refreshing token: {e}")
+            raise Exception(f"Failed to refresh token: {e}")
+
     if not creds or not creds.valid:
         raise Exception("Invalid credentials")
     return build(service_name, version, credentials=creds)
