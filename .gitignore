@@ -3,3 +3,4 @@ storage
 .env
 __pycache__
 providers/__pycache__
+traefik/acme.json
