@@ -1,6 +1,8 @@
 .venv
 storage
 .env
+.DS_Store
 __pycache__
 providers/__pycache__
 traefik/acme.json
+logs/
