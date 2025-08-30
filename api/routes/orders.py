@@ -17,10 +17,10 @@ router = APIRouter(tags=["orders"])
 
 
 @router.post("/lesznoje/order")
-async def call_end(data: list = Body(...), logger: logging.Logger = Depends(get_logger)):
+async def call_end(data: dict = Body(...), logger: logging.Logger = Depends(get_logger)):
     """Process order from VAPI call transcript."""
     try:
-        conversation_transcript = data[0]["message"]["transcript"]
+        conversation_transcript = data["message"]["transcript"]
         logger.info("Processing order from call transcript")
 
         # Get menu data and parse it
