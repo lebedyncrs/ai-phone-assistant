@@ -1,20 +1,16 @@
-import json
-from typing import Dict, List, Any, Optional
-
-from integrations.lesznoje.lesznoje_api import get_restaurant_details
-from integrations.lesznoje.leszno_menu_to_our import dd
-from models import Menu
+from typing import Dict, List, Any
+from models import Menu, Category, Product
 
 
-def convert_llm_output_to_api_format(
-    llm_output: Dict[str, Any],
+def our_products_to_leszno_api_format(
+    our_products: Dict[str, Any],
     parsed_menu: Menu,
     original_menu: Dict[str, Any],
 ) -> List[Dict[str, Any]]:
     """
-    Convert LLM output format to restaurant API format
+    Convert OUR products format to restaurant API format
 
-    LLM output format:
+    OUR output format:
     {
         "customer_name": "Customer name from conversation",
         "products": [
@@ -49,10 +45,10 @@ def convert_llm_output_to_api_format(
         for item in addon["items"]
     ]
     
-    for llm_product in llm_output.get("products", []):
-        product_id = llm_product.get("product_id")
-        variant_id = llm_product.get("variant_id")
-        addon_ids = llm_product.get("addons", [])
+    for our_product in our_products.get("products", []):
+        product_id = our_product.get("product_id")
+        variant_id = our_product.get("variant_id")
+        addon_ids = our_product.get("addons", [])
 
         product_result = parsed_menu.find_product_by_id(product_id)
         if not product_result:
@@ -73,18 +69,23 @@ def convert_llm_output_to_api_format(
                     "name": addon_value.name,
                     "group_name": addon.name
                 })
+                
         api_product = {
             "desc": product.product_description or "",
             "priceOptions": [{"name": v.name, "price": v.price, "variant_id": v.variant_id} for v in product.product_variants],
             "name": product.product_name + (" " + variant.name if variant else ""),
             "price": variant.price if variant else product.product_price or 0,
-            "additionalFields": global_additional_items,
             "category": category_name,
-            "option": variant.name if variant else "",
-            "amount": llm_product.get("amount_ordered", 1),  # Default amount
+            "amount": our_product.get("amount_ordered", 1),
             "selectedAdditionalFields": [],
             "notes": "",
         }
+        
+        if len(product.product_addons) > 0:
+            api_product["additionalFields"] = global_additional_items
+
+        if variant:
+            api_product["option"] = variant.name
 
         if len(selected_additional_fields) > 0:
             grouped_addons = {}
@@ -104,19 +105,3 @@ def convert_llm_output_to_api_format(
         api_format_products.append(api_product)
 
     return api_format_products
-
-
-# Manual lookup functions removed - replaced with Menu model methods
-
-
-def parse_llm_output_to_api_format(llm_output_json: str, parsed_menu: Menu, original_menu_json: str) -> str:
-    """Parse LLM output to restaurant API format"""
-    try:
-        llm_output = json.loads(llm_output_json)
-        original_menu = get_restaurant_details()
-        
-        api_format_products = convert_llm_output_to_api_format(llm_output, parsed_menu, original_menu["menu"])
-
-        return json.dumps(api_format_products, indent=2)
-    except Exception as e:
-        return json.dumps({"error": str(e)})
