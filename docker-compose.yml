@@ -14,10 +14,18 @@ services:
       - web
     labels:
       - "traefik.enable=true"
+      # HTTPS router
       - "traefik.http.routers.api.rule=Host(`api.deliverycouple.com`)"
       - "traefik.http.routers.api.entrypoints=websecure"
       - "traefik.http.routers.api.tls.certresolver=letsencrypt"
-      - "traefik.http.services.api.loadbalancer.server.port=8000"
+      # HTTP router (for redirect)
+      - "traefik.http.routers.api-http.rule=Host(`api.deliverycouple.com`)"
+      - "traefik.http.routers.api-http.entrypoints=web"
+      - "traefik.http.routers.api-http.middlewares=redirect-to-https"
+      # Service configuration
+      - "traefik.http.services.api.loadbalancer.server.port=8080"
+      # Redirect middleware
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
 
   # Traefik Reverse Proxy
   traefik:
@@ -40,4 +48,4 @@ services:
 
 networks:
   web:
-    external: false
+    external: true
