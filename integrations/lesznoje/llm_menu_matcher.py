@@ -3,11 +3,12 @@ from typing import Dict, List, Any, Optional
 
 from integrations.lesznoje.lesznoje_api import get_restaurant_details
 from integrations.lesznoje.menu_parser import dd
+from models import Menu
 
 
 def convert_llm_output_to_api_format(
     llm_output: Dict[str, Any],
-    parsed_menu: Dict[str, Any],
+    parsed_menu: Menu,
     original_menu: Dict[str, Any],
 ) -> List[Dict[str, Any]]:
     """
@@ -56,24 +57,35 @@ def convert_llm_output_to_api_format(
         variant_id = llm_product.get("variant_id")
         addon_ids = llm_product.get("addons", [])
 
-        product_info = find_product_by_id(parsed_menu, product_id)
-        if not product_info:
+        # Use Menu model methods instead of manual lookups
+        product_result = parsed_menu.find_product_by_id(product_id)
+        if not product_result:
             continue
 
-        category_name = find_category_by_product_id(parsed_menu, product_id)
-        
+        category, product = product_result
+        category_name = category.name
 
-        variant_info = find_variant_by_id(product_info, variant_id) if variant_id else None
+        variant = product.find_variant_by_id(variant_id) if variant_id else None
 
-        selected_additional_fields = find_addons_by_ids(product_info, addon_ids)
+        # Find selected addons using the product model
+        selected_additional_fields = []
+        for addon_id in addon_ids:
+            addon_result = product.find_addon_value_by_id(addon_id)
+            if addon_result:
+                addon, addon_value = addon_result
+                selected_additional_fields.append({
+                    "id": addon_id,
+                    "name": addon_value.name,
+                    "group_name": addon.name
+                })
         api_product = {
-            "desc": product_info.get("product_description", ""),
-            "priceOptions": product_info.get("product_variants", []),
-            "name": product_info.get("product_name", "") + (" " + variant_info.get("name", "") if variant_info else ""),
-            "price": variant_info.get("price", product_info.get("product_price", 0)) if variant_info else product_info.get("product_price", 0),
+            "desc": product.product_description or "",
+            "priceOptions": [{"name": v.name, "price": v.price, "variant_id": v.variant_id} for v in product.product_variants],
+            "name": product.product_name + (" " + variant.name if variant else ""),
+            "price": variant.price if variant else product.product_price or 0,
             "additionalFields": global_additional_items,
             "category": category_name,
-            "option": variant_info.get("name", "") if variant_info else "",
+            "option": variant.name if variant else "",
             "amount": llm_product.get("amount_ordered", 1),  # Default amount
             "selectedAdditionalFields": [],
             "notes": "",
@@ -99,69 +111,15 @@ def convert_llm_output_to_api_format(
     return api_format_products
 
 
-def find_product_by_id(parsed_menu: Dict[str, Any], product_id: str) -> Optional[Dict[str, Any]]:
-    """Find a product in the parsed menu by its ID"""
-    for category in parsed_menu.get("categories", []):
-        for product in category.get("products", []):
-            if product.get("product_id") == product_id:
-                return product
-    return None
+# Manual lookup functions removed - replaced with Menu model methods
 
 
-def find_category_name(parsed_menu: Dict[str, Any], category_id: str) -> str:
-    """Find a category name by its ID"""
-    for category in parsed_menu.get("categories", []):
-        if category.get("id") == category_id:
-            return category.get("name", "")
-    return ""
-
-
-def find_category_by_product_id(parsed_menu: Dict[str, Any], product_id: str) -> str:
-    """Find a category name by product ID"""
-    for category in parsed_menu.get("categories", []):
-        for product in category.get("products", []):
-            if product.get("product_id") == product_id:
-                return category.get("name", "")
-    return ""
-
-
-def find_variant_by_id(product_info: Dict[str, Any], variant_id: str) -> Optional[Dict[str, Any]]:
-    """Find a variant in a product by its ID"""
-    for variant in product_info.get("product_variants", []):
-        if variant.get("variant_id") == variant_id:
-            return variant
-    return None
-
-
-def find_addons_by_ids(product_info: Dict[str, Any], addon_ids: List[str]) -> List[Dict[str, Any]]:
-    """Find addons in a product by their IDs"""
-    selected_addons = []
-
-    if "product_addons" not in product_info:
-        return selected_addons
-    
-    for addon_id in addon_ids:
-        found = False
-        for addon_group in product_info.get("product_addons", []):
-            for addon_value in addon_group.get("values", []):
-                if addon_value.get("addon_id") == addon_id:
-                    selected_addons.append({"id": addon_id, "name": addon_value.get("name", ""), "group_name": addon_group.get("name")})
-                    found = True
-                    break
-            if found:
-                break
-            
-    return selected_addons
-
-
-def parse_llm_output_to_api_format(llm_output_json: str, parsed_menu_json: str, original_menu_json: str) -> str:
+def parse_llm_output_to_api_format(llm_output_json: str, parsed_menu: Menu, original_menu_json: str) -> str:
     """Parse LLM output to restaurant API format"""
     try:
         llm_output = json.loads(llm_output_json)
-        parsed_menu = json.loads(parsed_menu_json)
         original_menu = get_restaurant_details()
         
-
         api_format_products = convert_llm_output_to_api_format(llm_output, parsed_menu, original_menu["menu"])
 
         return json.dumps(api_format_products, indent=2)

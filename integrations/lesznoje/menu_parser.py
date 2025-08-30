@@ -1,6 +1,7 @@
 import json
 import unicodedata
 import hashlib
+from models import Menu
 
 MULTIPLE_CHOICE_TYPE = "multiple-choice"
 ADDITIONAL_FIELDS_TYPE_SET = "set"  # means we have to reference global 'addonFieldsSets'
@@ -19,7 +20,8 @@ def short_stable_hash(value: str, length: int = 8) -> str:
     return hashlib.sha256(value.encode()).hexdigest()[:length]
 
 
-def parse_menu_for_llm(menu_data: dict) -> dict:
+def parse_menu_for_llm(menu_data: dict) -> Menu:
+    """Convert restaurant API format to our internal Menu Pydantic model."""
     parsed_menu = {"categories": []}
     new_global_product_addons = parse_global_product_addons(menu_data)
     for category in menu_data["categories"]:
@@ -51,7 +53,7 @@ def parse_menu_for_llm(menu_data: dict) -> dict:
             new_category["products"].append(new_product)
         parsed_menu["categories"].append(new_category)
 
-    return parsed_menu
+    return Menu.from_dict(parsed_menu)
 
 
 def parse_product_variants(product: dict) -> list:
@@ -117,4 +119,4 @@ if __name__ == "__main__":
         menu_data = json.load(f)
         parsed_menu = parse_menu_for_llm(menu_data)
         with open("storage/parsed_menu.json", "w") as f:
-            json.dump(parsed_menu, f, indent=2, default=str)
+            json.dump(parsed_menu.model_dump(), f, indent=2, default=str)

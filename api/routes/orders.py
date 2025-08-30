@@ -35,7 +35,7 @@ async def call_end(data: list = Body(...), logger: logging.Logger = Depends(get_
         with open("storage/llm_response.json", "r") as f:
             llm_response_json = f.read()
 
-        api_format_products = parse_llm_output_to_api_format(llm_response_json, json.dumps(parsed_menu), menu)
+        api_format_products = parse_llm_output_to_api_format(llm_response_json, parsed_menu, menu)
         latest_call = get_latest_call()
 
         order_data = {
@@ -59,10 +59,10 @@ async def call_end(data: list = Body(...), logger: logging.Logger = Depends(get_
             "delivery_cost": 0,
         }
 
-        order_response = create_order(order_data)
-        logger.info(f"Order created successfully: {order_response}")
+        # order_response = create_order(order_data)
+        # logger.info(f"Order created successfully: {order_response}")
 
-        return {"message": order_response}
+        return {"message": order_data}
 
     except FileNotFoundError:
         logger.error("LLM response file not found")
