@@ -7,3 +7,4 @@ class AddonValue(BaseModel):
     """Represents a single addon value option."""
     addon_id: str = Field(..., min_length=1, description="Unique addon value identifier")
     name: str = Field(..., min_length=1, description="Addon value name")
+    price: float = Field(default=0, ge=0, description="Addon value price")

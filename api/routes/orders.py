@@ -7,8 +7,8 @@ import json
 from providers.twilio_api import get_latest_call
 from providers.open_ai import match_ordered_products
 from integrations.lesznoje.lesznoje_api import get_restaurant_details, create_order
-from integrations.lesznoje.menu_parser import parse_menu_for_llm
-from integrations.lesznoje.llm_menu_matcher import parse_llm_output_to_api_format
+from integrations.lesznoje.leszno_menu_to_our import leszno_menu_to_our
+from integrations.lesznoje.our_menu_to_leszno import our_products_to_leszno_api_format
 from api.dependencies import get_logger
 
 router = APIRouter(tags=["orders"])
@@ -23,7 +23,7 @@ async def call_end(data: list = Body(...), logger: logging.Logger = Depends(get_
 
         # Get menu data and parse it
         menu = get_restaurant_details()["menu"]
-        parsed_menu = parse_menu_for_llm(menu)
+        parsed_menu = leszno_menu_to_our(menu)
         logger.info("Retrieved and parsed restaurant menu")
 
         # For development, use stored LLM response
@@ -35,7 +35,8 @@ async def call_end(data: list = Body(...), logger: logging.Logger = Depends(get_
         with open("storage/llm_response.json", "r") as f:
             llm_response_json = f.read()
 
-        api_format_products = parse_llm_output_to_api_format(llm_response_json, parsed_menu, menu)
+        leszno_products_format = our_products_to_leszno_api_format(json.loads(llm_response_json), parsed_menu, menu)
+
         latest_call = get_latest_call()
 
         order_data = {
@@ -51,16 +52,16 @@ async def call_end(data: list = Body(...), logger: logging.Logger = Depends(get_
                 "allowEmail": False,
                 "deliveryAt": "",
             },
-            "products": json.loads(api_format_products),
+            "products": leszno_products_format,
             "payment_type": "card_on_place",
             "delivery_type": "takeout",
             "source": "web_app",
-            "price": sum([product["price"] for product in json.loads(api_format_products)]),
+            "price": sum([product["price"] for product in leszno_products_format]),
             "delivery_cost": 0,
         }
 
-        # order_response = create_order(order_data)
-        # logger.info(f"Order created successfully: {order_response}")
+        order_response = create_order(order_data)
+        logger.info(f"Order created successfully: {order_response}")
 
         return {"message": order_data}
 
