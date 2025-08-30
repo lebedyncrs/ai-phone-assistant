@@ -21,18 +21,6 @@ class Product(BaseModel):
         """Check if product has variants."""
         return len(self.product_variants) > 0
 
-    @computed_field
-    @property
-    def base_price(self) -> float | None:
-        """Get the base price - either fixed price or minimum variant price."""
-        if self.product_price is not None:
-            return self.product_price
-        
-        if self.product_variants:
-            return min(variant.price for variant in self.product_variants)
-        
-        return None
-
     def find_variant_by_id(self, variant_id: str) -> ProductVariant | None:
         """Find a specific variant by exact ID match."""
         for variant in self.product_variants:

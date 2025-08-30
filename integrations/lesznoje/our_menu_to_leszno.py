@@ -1,5 +1,6 @@
 from typing import Dict, List, Any
-from models import Menu, Category, Product
+from models import Menu, Product
+from integrations.lesznoje.leszno_menu_to_our import ADDITIONAL_FIELDS_TYPE_SET
 
 
 def our_products_to_leszno_api_format(
@@ -39,12 +40,8 @@ def our_products_to_leszno_api_format(
     """
     api_format_products = []
 
-    global_additional_items = [
-        item 
-        for addon in original_menu['addonFieldsSets'] 
-        for item in addon["items"]
-    ]
-    
+    global_additional_items = original_menu["addonFieldsSets"]
+
     for our_product in our_products.get("products", []):
         product_id = our_product.get("product_id")
         variant_id = our_product.get("variant_id")
@@ -59,17 +56,6 @@ def our_products_to_leszno_api_format(
 
         variant = product.find_variant_by_id(variant_id) if variant_id else None
 
-        selected_additional_fields = []
-        for addon_id in addon_ids:
-            addon_result = product.find_addon_value_by_id(addon_id)
-            if addon_result:
-                addon, addon_value = addon_result
-                selected_additional_fields.append({
-                    "id": addon_id,
-                    "name": addon_value.name,
-                    "group_name": addon.name
-                })
-                
         api_product = {
             "desc": product.product_description or "",
             "priceOptions": [{"name": v.name, "price": v.price, "variant_id": v.variant_id} for v in product.product_variants],
@@ -80,28 +66,45 @@ def our_products_to_leszno_api_format(
             "selectedAdditionalFields": [],
             "notes": "",
         }
-        
-        if len(product.product_addons) > 0:
-            api_product["additionalFields"] = global_additional_items
+
+        set_addon_reference_ids = [addon.reference_id for addon in product.product_addons if addon.type == ADDITIONAL_FIELDS_TYPE_SET and addon.reference_id]
+
+        matching_global_addons = [global_addon for global_addon in global_additional_items if global_addon.get("id") in set_addon_reference_ids]
+
+        if matching_global_addons:
+            api_product["additionalFields"] = [item for global_addon in matching_global_addons for item in global_addon.get("items", [])]
+        else:
+            api_product["additionalFields"] = [
+                {"name": addon.name, "type": addon.type, "price": addon.price, "values": [{"name": value.name, "id": value.addon_id} for value in addon.values]}
+                for addon in product.product_addons
+                if addon.type != ADDITIONAL_FIELDS_TYPE_SET
+            ]
 
         if variant:
             api_product["option"] = variant.name
 
+        selected_additional_fields = []
+        for addon_id in addon_ids:
+            addon_result = product.find_addon_value_by_id(addon_id)
+            if addon_result:
+                addon, addon_value = addon_result
+                selected_additional_fields.append({"our_id": addon_id, "name": addon_value.name, "group_name": addon.name})
+
         if len(selected_additional_fields) > 0:
             grouped_addons = {}
             for addon in selected_additional_fields:
-                group_name = addon['group_name']
+                group_name = addon["group_name"]
                 if group_name not in grouped_addons:
                     grouped_addons[group_name] = []
-                grouped_addons[group_name].append(addon['name'])
-            
+                grouped_addons[group_name].append(addon["name"])
+
             formatted_addons = []
             for group_name, addon_names in grouped_addons.items():
                 addon_list = ", 1x".join(addon_names)
                 formatted_addons.append(f"{group_name}: 1x{addon_list}")
-            
+
             api_product["selectedAdditionalFields"] = formatted_addons
-        
+
         api_format_products.append(api_product)
 
     return api_format_products

@@ -49,13 +49,26 @@ def leszno_menu_to_our(menu_data: dict) -> Menu:
             new_product["product_description"] = product["desc"]
             new_product["product_variants"] = product_variants
             new_product["product_addons"] = []
+
             if "price" in product:
                 new_product["product_price"] = product["price"]
 
             if "additionalFields" in product and product["additionalFields"]:
                 for additional_field in product["additionalFields"]:
-                    if "value" in additional_field and additional_field["value"] in new_global_product_addons:
-                        new_product["product_addons"].append(new_global_product_addons[additional_field["value"]])
+                    if additional_field["type"] == CHECKBOX_TYPE:
+                        new_product["product_addons"].append(
+                            {
+                                "name": additional_field["name"],
+                                "price": additional_field["addonPrice"],
+                                "type": additional_field["type"],
+                            }
+                        )
+                    elif additional_field["type"] == ADDITIONAL_FIELDS_TYPE_SET:
+                        new_product["product_addons"].append({
+                            "name": additional_field["name"],
+                            "values": new_global_product_addons[additional_field["value"]]["values"],
+                            "reference_id": additional_field["value"],
+                        })
 
             new_category["products"].append(new_product)
         parsed_menu["categories"].append(new_category)
@@ -98,10 +111,16 @@ def parse_global_product_addons(menu: dict) -> dict:
                 }
                 for value in first_item["value"].split(", ")
             ]
-        elif first_item["type"] == ADDITIONAL_FIELDS_TYPE_SET:
-            continue  ## have to be implemented
         elif first_item["type"] == CHECKBOX_TYPE:
-            continue  ## have to be implemented
+            addon_values = [
+                {
+                    "addon_id": short_stable_hash(value["name"].strip()),
+                    "name": value["name"].strip(),
+                    "price": value["addonPrice"],
+                    "group_name": addon["name"],
+                }
+                for value in addon["items"]
+            ]
 
         global_product_addons[addon["id"]] = {
             "name": first_item["name"],
