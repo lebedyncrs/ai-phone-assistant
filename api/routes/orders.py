@@ -15,10 +15,7 @@ router = APIRouter(tags=["orders"])
 
 
 @router.post("/vapi/call-ended")
-async def call_end(
-    data: list = Body(...),
-    logger: logging.Logger = Depends(get_logger)
-):
+async def call_end(data: list = Body(...), logger: logging.Logger = Depends(get_logger)):
     """Process order from VAPI call transcript."""
     try:
         conversation_transcript = data[0]["message"]["transcript"]
@@ -37,17 +34,17 @@ async def call_end(
         # Read the stored LLM response for testing
         with open("storage/llm_response.json", "r") as f:
             llm_response_json = f.read()
-        
-        api_format_products = parse_llm_output_to_api_format(llm_response_json, json.dumps(parsed_menu))
+
+        api_format_products = parse_llm_output_to_api_format(llm_response_json, json.dumps(parsed_menu), menu)
         latest_call = get_latest_call()
-        
+
         order_data = {
             "customer": {
-                "customer_name": json.loads(llm_response_json)["customer_name"],
+                "customer_firstname": json.loads(llm_response_json)["customer_name"],
                 "phone": latest_call["from_formatted"],
                 "flat": "",
                 "cutleryPreferences": "",
-                "notes": "",
+                "notes": "Voice agent order",
                 "delivery": "takeout",
                 "allowMarketing": False,
                 "allowSms": False,
@@ -55,19 +52,18 @@ async def call_end(
                 "deliveryAt": "",
             },
             "products": json.loads(api_format_products),
-            "phone": latest_call["from_formatted"],
             "payment_type": "card_on_place",
             "delivery_type": "takeout",
             "source": "web_app",
             "price": sum([product["price"] for product in json.loads(api_format_products)]),
             "delivery_cost": 0,
         }
-        
+
         order_response = create_order(order_data)
         logger.info(f"Order created successfully: {order_response}")
-        
-        return {"message": order_data}
-        
+
+        return {"message": order_response}
+
     except FileNotFoundError:
         logger.error("LLM response file not found")
         raise HTTPException(status_code=500, detail="LLM response file not found")
