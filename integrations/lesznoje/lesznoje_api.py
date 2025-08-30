@@ -3,12 +3,14 @@ import requests
 
 def get_restaurant_details(restaurant_id: int = 521) -> dict:
     response = requests.get(f"https://otostolik.pl/api/restaurants/{restaurant_id}")
+    response.raise_for_status()  # Raise an exception for bad status codes
+    data = response.json()
     return {
-        "menu": response.json()["menu"],
-        "name": response.json()["name"],
-        "location": response.json()["location"],
-        "status": response.json()["status"],
-        "phone": response.json()["phone"],
+        "menu": data["menu"],
+        "name": data["name"],
+        "location": data["location"],
+        "status": data["status"],
+        "phone": data["phone"],
     }
 
 

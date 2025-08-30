@@ -1,5 +1,6 @@
 import os
 from openai import OpenAI
+import json
 
 PROMPT = """
 You are given:
@@ -43,7 +44,6 @@ def match_ordered_products(menu: str, conversation: str):
     client = get_client()
     response = client.chat.completions.create(
         model="gpt-4o-mini",
-        # instructions="You are a coding assistant that talks like a pirate.",
         messages=[
             {
                 "role": "system", 
@@ -54,5 +54,5 @@ def match_ordered_products(menu: str, conversation: str):
             {"role": "user", "content": conversation}
         ],
     )
-    return response.choices[0].message.content
+    return json.loads(response.choices[0].message.content)
 

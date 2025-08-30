@@ -1,5 +1,5 @@
 from typing import Dict, List, Any
-from models import Menu, Product
+from models import Menu
 from integrations.lesznoje.leszno_menu_to_our import ADDITIONAL_FIELDS_TYPE_SET
 
 
