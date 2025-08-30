@@ -7,8 +7,8 @@ import json
 from providers.twilio_api import get_latest_call
 from providers.open_ai import match_ordered_products
 from integrations.lesznoje.lesznoje_api import get_restaurant_details, create_order
-from integrations.lesznoje.menu_parser import parse_menu_for_llm
-from integrations.lesznoje.llm_menu_matcher import parse_llm_output_to_api_format
+from integrations.lesznoje.leszno_menu_to_our import leszno_menu_to_our
+from integrations.lesznoje.our_menu_to_leszno import parse_llm_output_to_api_format
 from api.dependencies import get_logger
 
 router = APIRouter(tags=["orders"])
@@ -23,7 +23,7 @@ async def call_end(data: list = Body(...), logger: logging.Logger = Depends(get_
 
         # Get menu data and parse it
         menu = get_restaurant_details()["menu"]
-        parsed_menu = parse_menu_for_llm(menu)
+        parsed_menu = leszno_menu_to_our(menu)
         logger.info("Retrieved and parsed restaurant menu")
 
         # For development, use stored LLM response

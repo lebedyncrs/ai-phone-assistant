@@ -1,6 +1,13 @@
 import json
 import unicodedata
 import hashlib
+import sys
+from pathlib import Path
+
+# Add project root to Python path
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
+
 from models import Menu
 
 MULTIPLE_CHOICE_TYPE = "multiple-choice"
@@ -20,7 +27,7 @@ def short_stable_hash(value: str, length: int = 8) -> str:
     return hashlib.sha256(value.encode()).hexdigest()[:length]
 
 
-def parse_menu_for_llm(menu_data: dict) -> Menu:
+def leszno_menu_to_our(menu_data: dict) -> Menu:
     """Convert restaurant API format to our internal Menu Pydantic model."""
     parsed_menu = {"categories": []}
     new_global_product_addons = parse_global_product_addons(menu_data)
@@ -117,6 +124,6 @@ def parse_menu_from_llm(menu_data: dict) -> dict:
 if __name__ == "__main__":
     with open("storage/menu.json", "r") as f:
         menu_data = json.load(f)
-        parsed_menu = parse_menu_for_llm(menu_data)
+        parsed_menu = leszno_menu_to_our(menu_data)
         with open("storage/parsed_menu.json", "w") as f:
             json.dump(parsed_menu.model_dump(), f, indent=2, default=str)

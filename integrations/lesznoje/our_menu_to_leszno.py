@@ -2,7 +2,7 @@ import json
 from typing import Dict, List, Any, Optional
 
 from integrations.lesznoje.lesznoje_api import get_restaurant_details
-from integrations.lesznoje.menu_parser import dd
+from integrations.lesznoje.leszno_menu_to_our import dd
 from models import Menu
 
 
@@ -43,21 +43,17 @@ def convert_llm_output_to_api_format(
     """
     api_format_products = []
 
-    # Flatten the nested structure - get all items from all addon sets
     global_additional_items = [
         item 
         for addon in original_menu['addonFieldsSets'] 
         for item in addon["items"]
     ]
     
-
-
     for llm_product in llm_output.get("products", []):
         product_id = llm_product.get("product_id")
         variant_id = llm_product.get("variant_id")
         addon_ids = llm_product.get("addons", [])
 
-        # Use Menu model methods instead of manual lookups
         product_result = parsed_menu.find_product_by_id(product_id)
         if not product_result:
             continue
@@ -67,7 +63,6 @@ def convert_llm_output_to_api_format(
 
         variant = product.find_variant_by_id(variant_id) if variant_id else None
 
-        # Find selected addons using the product model
         selected_additional_fields = []
         for addon_id in addon_ids:
             addon_result = product.find_addon_value_by_id(addon_id)

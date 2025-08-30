@@ -51,39 +51,3 @@ class Menu(BaseModel):
                     addon, addon_value = addon_result
                     return category, product, addon, addon_value
         return None
-
-    def get_product_with_variant_and_addons(self, product_id: str, variant_id: str | None = None, addon_ids: list[str] | None = None) -> dict[str, Any] | None:
-        """Get complete product information with specific variant and addons by IDs."""
-        # Find product
-        product_result = self.find_product_by_id(product_id)
-        if not product_result:
-            return None
-        
-        category, product = product_result
-        result = {
-            'category': category,
-            'product': product,
-            'variant': None,
-            'selected_addons': [],
-            'total_price': product.product_price or 0.0
-        }
-        
-        # Find variant if specified
-        if variant_id:
-            variant = product.find_variant_by_id(variant_id)
-            if variant:
-                result['variant'] = variant
-                result['total_price'] = variant.price
-        
-        # Find addons if specified
-        if addon_ids:
-            for addon_id in addon_ids:
-                addon_result = product.find_addon_value_by_id(addon_id)
-                if addon_result:
-                    addon, addon_value = addon_result
-                    result['selected_addons'].append({
-                        'addon': addon,
-                        'value': addon_value
-                    })
-        
-        return result
