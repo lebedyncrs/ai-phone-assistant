@@ -14,6 +14,12 @@ Your task:
 
 {
   "customer_name": "Customer name from conversation",
+  "payment_type": "cash" or "card_on_place",
+  "delivery_type": "takeout" or "delivery",
+  "delivery_address": { if takeout set null else:
+    "street": "Street address from conversation if delivery, otherwise empty string",
+    "flat": "Flat number from conversation if delivery, otherwise empty string ex. 1/13"
+  },
   "products": [
     {
       "product_id": "product_id",
@@ -40,7 +46,7 @@ Rules:
 def get_client():
     return OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
-def match_ordered_products(menu: str, conversation: str):
+def match_ordered_products(menu: str, conversation: str) -> dict:
     client = get_client()
     response = client.chat.completions.create(
         model="gpt-4o-mini",
@@ -54,5 +60,5 @@ def match_ordered_products(menu: str, conversation: str):
             {"role": "user", "content": conversation}
         ],
     )
-    return json.loads(response.choices[0].message.content)
+    return json.loads(response.choices[0].message.content) # has to be our class type
 

@@ -29,33 +29,42 @@ async def call_end(data: dict = Body(...), logger: logging.Logger = Depends(get_
         logger.info("Retrieved and parsed restaurant menu")
 
         # For development, use stored LLM response
-        # In production, uncomment these lines to use the actual LLM
-        matched_ordered_products = match_ordered_products(json.dumps(parsed_menu.model_dump()), conversation_transcript)
-
         # Read the stored LLM response for testing
         # with open("storage/llm_response.json", "r") as f:
         #     matched_ordered_products = f.read()
+        # In production, uncomment these lines to use the actual LLM
+        matched_ordered_products = match_ordered_products(json.dumps(parsed_menu.model_dump()), conversation_transcript)
 
         leszno_products_format = our_products_to_leszno_api_format(matched_ordered_products, parsed_menu, menu)
 
         latest_call = get_latest_call()
 
+        street_name = ""
+        street_number = ""
+        flat = ""
+        if "street" in matched_ordered_products["delivery_address"]:
+            street_name = matched_ordered_products["delivery_address"]["street"]
+            street_number, flat = matched_ordered_products["delivery_address"]["flat"].split("/")
+
         order_data = {
             "customer": {
                 "customer_firstname": matched_ordered_products["customer_name"],
                 "phone": latest_call["from_formatted"],
-                "flat": "",
                 "cutleryPreferences": "",
                 "notes": "Voice agent order",
-                "delivery": "takeout",
+                "delivery": matched_ordered_products["delivery_type"],
                 "allowMarketing": False,
                 "allowSms": False,
+                "city": "Leszno",
+                "street": street_name,
+                "house": street_number,
+                "flat": flat,
                 "allowEmail": False,
                 "deliveryAt": "",
             },
             "products": leszno_products_format,
-            "payment_type": "card_on_place",
-            "delivery_type": "takeout",
+            "payment_type": matched_ordered_products["payment_type"],
+            "delivery_type": matched_ordered_products["delivery_type"],
             "source": "web_app",
             "price": sum([product["price"] for product in leszno_products_format]),
             "delivery_cost": 0,
