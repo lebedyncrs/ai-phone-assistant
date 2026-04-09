@@ -1,5 +1,5 @@
 import os
-from typing import Optional
+from typing import Optional, cast
 
 from dotenv import load_dotenv
 from loguru import logger
@@ -16,8 +16,11 @@ from pipecat.processors.aggregators.llm_response_universal import (
 from pipecat.runner.types import RunnerArguments
 from pipecat.services.cartesia.tts import GenerationConfig
 from src.prompts import GREETING_PROMPT, SYSTEM_INSTRUCTION
+from src.services.open_api_service import summarize_conversation
+from src.services.telegram_service import send_message
 
 from pipecat.runner.utils import parse_telephony_websocket
+from src.dto.call_info import CallInfo
 from src.services.twilio_service import get_call_info
 from pipecat.serializers.twilio import TwilioFrameSerializer
 from pipecat.services.cartesia.tts import CartesiaTTSService
@@ -29,10 +32,12 @@ from pipecat.transports.websocket.fastapi import (
     FastAPIWebsocketTransport,
 )
 
+from src.dto.call_data import CallData
+
 load_dotenv(override=True)
 
 
-async def run_bot(transport: BaseTransport, handle_sigint: bool, testing: bool):
+async def run_bot(transport: BaseTransport, handle_sigint: bool, testing: bool, call_info: Optional[CallInfo] = None):
     llm = OpenAILLMService(
         api_key=os.getenv("OPENAI_API_KEY"),
         settings=OpenAILLMService.Settings(
@@ -55,7 +60,7 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, testing: bool):
             model="sonic-3",
             language=os.getenv("CARTESIA_LANGUAGE", "pl"),
             generation_config=GenerationConfig(
-                speed=1.2, 
+                speed=1.2,
             ),
         ),
         push_silence_after_stop=testing,
@@ -95,10 +100,20 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, testing: bool):
     async def on_client_connected(transport, client):
         logger.info("Client connected, greeting user")
         context.add_message({"role": "user", "content": GREETING_PROMPT})
+        from_number = call_info.from_number if call_info else "unknown"
+        await send_message(f"📞 Call started from: {from_number}")
         await task.queue_frames([LLMRunFrame()])
 
     @transport.event_handler("on_client_disconnected")
-    async def on_client_disconnected(transport, client):
+    async def on_client_disconnected(transport, client) -> None:
+        try:
+            messages = context.get_messages()
+            if messages:
+                summary = await summarize_conversation(messages)
+                from_number = call_info.from_number if call_info else "unknown"
+                await send_message(f"📋 Call summary ({from_number}):\n{summary}")
+        except Exception as e:
+            logger.error(f"Failed to generate call summary: {e}")
         await task.cancel()
 
     # We use `handle_sigint=False` because `uvicorn` is controlling keyboard
@@ -113,14 +128,15 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, testing: bool):
 async def bot(runner_args: RunnerArguments, testing: Optional[bool] = False):
     """Main bot entry point compatible with Pipecat Cloud."""
 
-    _, call_data = await parse_telephony_websocket(runner_args.websocket)
+    result = await parse_telephony_websocket(runner_args.websocket)
+    call_data = cast(CallData, result[1])
 
     # Fetch call information from Twilio REST API
     # With the call information, you can make a request to your API to get the user's information
     # and inject that information into your bot's configuration.
     call_info = await get_call_info(call_data["call_id"])
     if call_info:
-        logger.info(f"Call from: {call_info.get('from_number')} to: {call_info.get('to_number')}")
+        logger.info(f"Call from: {call_info.from_number} to: {call_info.to_number}")
 
     serializer = TwilioFrameSerializer(
         stream_sid=call_data["stream_id"],
@@ -139,7 +155,7 @@ async def bot(runner_args: RunnerArguments, testing: Optional[bool] = False):
         ),
     )
 
-    await run_bot(transport, runner_args.handle_sigint, testing)
+    await run_bot(transport, runner_args.handle_sigint, testing, call_info)
 
 
 if __name__ == "__main__":
