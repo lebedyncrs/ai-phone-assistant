@@ -15,6 +15,7 @@ from pipecat.processors.aggregators.llm_response_universal import (
 )
 from pipecat.runner.types import RunnerArguments
 from pipecat.services.cartesia.tts import GenerationConfig
+from src.prompts import GREETING_PROMPT, SYSTEM_INSTRUCTION
 
 from pipecat.runner.utils import parse_telephony_websocket
 from src.services.twilio_service import get_call_info
@@ -36,7 +37,7 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, testing: bool):
         api_key=os.getenv("OPENAI_API_KEY"),
         settings=OpenAILLMService.Settings(
             model=os.getenv("OPENAI_MODEL", "gpt-4.1-nano"),
-            system_instruction="You are a helpful assistant in a voice conversation. Your responses will be spoken aloud, so avoid emojis, bullet points, or other formatting that can't be spoken. Always respond in Polish. Respond to what the user said in a creative, helpful, and brief way.",
+            system_instruction=SYSTEM_INSTRUCTION,
         ),
     )
 
@@ -52,7 +53,7 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, testing: bool):
         settings=CartesiaTTSService.Settings(
             voice=os.getenv("CARTESIA_VOICE_ID", ""),
             model="sonic-3",
-            language="pl",
+            language=os.getenv("CARTESIA_LANGUAGE", "pl"),
             generation_config=GenerationConfig(
                 speed=1.2, 
             ),
@@ -93,7 +94,7 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, testing: bool):
     @transport.event_handler("on_client_connected")
     async def on_client_connected(transport, client):
         logger.info("Client connected, greeting user")
-        context.add_message({"role": "user", "content": "Please great user nicely, you name is Bred."})
+        context.add_message({"role": "user", "content": GREETING_PROMPT})
         await task.queue_frames([LLMRunFrame()])
 
     @transport.event_handler("on_client_disconnected")
