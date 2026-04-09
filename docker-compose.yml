@@ -1,0 +1,28 @@
+services:
+  voice-assistant:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: voice-assistant
+    ports:
+      - "7860:7860"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY}
+      - CARTESIA_API_KEY=${CARTESIA_API_KEY}
+      - CARTESIA_VOICE_ID=${CARTESIA_VOICE_ID}
+      - CARTESIA_LANGUAGE=${CARTESIA_LANGUAGE:-pl}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4.1-nano}
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+    env_file:
+      - .env
+    restart: unless-stopped
+    networks:
+      - voice-assistant
+
+networks:
+  voice-assistant:
+    driver: bridge

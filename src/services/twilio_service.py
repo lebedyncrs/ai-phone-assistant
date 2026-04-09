@@ -23,7 +23,7 @@ async def get_call_info(call_sid: str) -> CallInfo | None:
     try:
         call = await asyncio.to_thread(_fetch)
         
-        return CallInfo(from_number=call._from, to_number=call.to)
+        return CallInfo(from_number=call._from, to_number=call.to, forwarded_from=call.forwarded_from)
     except Exception as e:
         logger.error(f"Error fetching call info from Twilio: {e}")
         return None

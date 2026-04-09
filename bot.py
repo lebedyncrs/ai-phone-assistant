@@ -136,7 +136,7 @@ async def bot(runner_args: RunnerArguments, testing: Optional[bool] = False):
     # and inject that information into your bot's configuration.
     call_info = await get_call_info(call_data["call_id"])
     if call_info:
-        logger.info(f"Call from: {call_info.from_number} to: {call_info.to_number}")
+        logger.info(f"Call from: {call_info.from_number} to: {call_info.to_number}, forwarded from: {call_info.forwarded_from}")
 
     serializer = TwilioFrameSerializer(
         stream_sid=call_data["stream_id"],

@@ -1,19 +1,27 @@
-FROM dailyco/pipecat-base:latest
+FROM python:3.12-slim-bookworm
+
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+
+# Set working directory
+WORKDIR /app
 
 # Enable bytecode compilation
 ENV UV_COMPILE_BYTECODE=1
-
-# Copy from the cache instead of linking since it's a mounted volume
 ENV UV_LINK_MODE=copy
 
-# Uncomment if you wish to print a summary of the features available in the base image
-# ENV PCC_LOG_FEATURES_SUMMARY=true
+# Copy dependency files
+COPY uv.lock pyproject.toml ./
 
-# Install the project's dependencies using the lockfile and settings
-RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=uv.lock,target=uv.lock \
-    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --locked --no-install-project --no-dev
+# Install dependencies
+RUN uv sync --locked --no-install-project --no-dev
 
 # Copy the application code
-COPY ./bot.py bot.py
+COPY bot.py ./
+COPY src/ ./src/
+
+# Expose the port (Pipecat runner default)
+EXPOSE 7860
+
+# Run the bot - bind to 0.0.0.0 to allow external access
+CMD ["uv", "run", "bot.py", "-t", "twilio", "--host", "0.0.0.0", "--port", "7860"]
