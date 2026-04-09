@@ -1,3 +1,4 @@
+import asyncio
 import os
 from typing import Optional, cast
 
@@ -15,7 +16,7 @@ from pipecat.processors.aggregators.llm_response_universal import (
 )
 from pipecat.runner.types import RunnerArguments
 from pipecat.services.cartesia.tts import GenerationConfig
-from src.prompts import GREETING_PROMPT, SYSTEM_INSTRUCTION
+from src.prompts import SYSTEM_INSTRUCTION
 from src.services.open_api_service import summarize_conversation
 from src.services.telegram_service import send_message
 
@@ -99,9 +100,8 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, testing: bool, 
     @transport.event_handler("on_client_connected")
     async def on_client_connected(transport, client):
         logger.info("Client connected, greeting user")
-        context.add_message({"role": "user", "content": GREETING_PROMPT})
         from_number = call_info.from_number if call_info else "unknown"
-        await send_message(f"📞 Call started from: {from_number}")
+        asyncio.create_task(send_message(f"📞 Call started from: {from_number}"))
         await task.queue_frames([LLMRunFrame()])
 
     @transport.event_handler("on_client_disconnected")
