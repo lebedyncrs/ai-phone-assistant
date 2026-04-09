@@ -1,51 +1,28 @@
-version: '3'
-
 services:
-  # FastAPI Application
-  api:
-    build: .
-    container_name: fastapi-app
-    restart: always
-    environment:
-      - PYTHONUNBUFFERED=1
-    volumes:
-      - ./storage:/app/storage
-    networks:
-      - web
-    labels:
-      - "traefik.enable=true"
-      # HTTPS router
-      - "traefik.http.routers.api.rule=Host(`api.deliverycouple.com`)"
-      - "traefik.http.routers.api.entrypoints=websecure"
-      - "traefik.http.routers.api.tls.certresolver=letsencrypt"
-      # HTTP router (for redirect)
-      - "traefik.http.routers.api-http.rule=Host(`api.deliverycouple.com`)"
-      - "traefik.http.routers.api-http.entrypoints=web"
-      - "traefik.http.routers.api-http.middlewares=redirect-to-https"
-      # Service configuration
-      - "traefik.http.services.api.loadbalancer.server.port=8000"
-      # Redirect middleware
-      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
-
-  # Traefik Reverse Proxy
-  traefik:
-    image: traefik:v2.10
-    container_name: traefik
-    restart: always
+  voice-assistant:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: voice-assistant
     ports:
-      - "80:80"
-      - "443:443"
-      # Traefik Dashboard (optional)
-      - "8081:8080"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
-      - ./traefik/acme.json:/acme.json
+      - "7860:7860"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY}
+      - CARTESIA_API_KEY=${CARTESIA_API_KEY}
+      - CARTESIA_VOICE_ID=${CARTESIA_VOICE_ID}
+      - CARTESIA_LANGUAGE=${CARTESIA_LANGUAGE:-pl}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4.1-nano}
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+    env_file:
+      - .env
+    restart: unless-stopped
     networks:
-      - web
-    depends_on:
-      - api
+      - voice-assistant
 
 networks:
-  web:
-    external: true
+  voice-assistant:
+    driver: bridge
