@@ -127,6 +127,21 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, testing: bool, 
 
 async def bot(runner_args: RunnerArguments, testing: Optional[bool] = False):
     """Main bot entry point compatible with Pipecat Cloud."""
+    from pipecat.runner.types import SmallWebRTCRunnerArguments
+
+    if isinstance(runner_args, SmallWebRTCRunnerArguments):
+        from pipecat.transports.base_transport import TransportParams
+        from pipecat.transports.network.small_webrtc import SmallWebRTCTransport
+
+        transport = SmallWebRTCTransport(
+            webrtc_connection=runner_args.webrtc_connection,
+            params=TransportParams(
+                audio_in_enabled=True,
+                audio_out_enabled=True,
+            ),
+        )
+        await run_bot(transport, handle_sigint=False, testing=True)
+        return
 
     result = await parse_telephony_websocket(runner_args.websocket)
     call_data = cast(CallData, result[1])
