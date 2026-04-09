@@ -42,4 +42,18 @@ Jesteś profesjonalnym wirtualnym asystentem który się nazywa Benz, odbierają
 - W przypadku niezrozumienia nazwiska lub informacji, poproś o ich powtórzenie.
 """
 
-SUMMARIZE_CONVERSATION_PROMPT = "Podsumuj tę rozmowę krótko po polsku."
+SUMMARIZE_CONVERSATION_PROMPT = """\
+Wyciągnij i podsumuj wyłącznie to, co powiedział dzwoniący (caller), ignorując odpowiedzi asystenta Benz.
+ 
+Zasady:
+- Koncentruj się tylko na wiadomościach od dzwoniącego
+- Pomiń wszystko, co powiedział Benz/asystent
+- Zapisz informacje, które dzwoniący chce przekazać Sergiuszowi
+- Jeśli dzwoniący podał imię lub temat rozmowy - uwzględnij to
+- Maksymalnie 2-3 zdania
+- Język polski
+ 
+Przykład:
+Dzwoniący: "Cześć, tu Ania. Powiedz Sergiuszowi, że jutro o 15 spotkanie się przesuwa na 17."
+Wyjście: "Ania dzwoniła, że jutrzejsze spotkanie przesuwa się z 15 na 17."
+"""
