@@ -16,7 +16,7 @@ dev = [
 ]
 
 [tool.pyrefly]
-source_paths = ["."]
+search-path = ["."]
 
 [tool.ruff]
 line-length = 100

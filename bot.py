@@ -14,6 +14,8 @@ from pipecat.processors.aggregators.llm_response_universal import (
     LLMUserAggregatorParams,
 )
 from pipecat.runner.types import RunnerArguments
+from pipecat.services.cartesia.tts import GenerationConfig
+
 from pipecat.runner.utils import parse_telephony_websocket
 from src.services.twilio_service import get_call_info
 from pipecat.serializers.twilio import TwilioFrameSerializer
@@ -39,16 +41,21 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, testing: bool):
     )
 
     stt = DeepgramSTTService(
-        api_key=os.getenv("DEEPGRAM_API_KEY"),
+        api_key=os.getenv("DEEPGRAM_API_KEY", ""),
         settings=DeepgramSTTService.Settings(
             language="pl",
         ),
     )
 
     tts = CartesiaTTSService(
-        api_key=os.getenv("CARTESIA_API_KEY"),
+        api_key=os.getenv("CARTESIA_API_KEY", ""),
         settings=CartesiaTTSService.Settings(
-            voice=os.getenv("CARTESIA_VOICE_ID"),
+            voice=os.getenv("CARTESIA_VOICE_ID", ""),
+            model="sonic-3",
+            language="pl",
+            generation_config=GenerationConfig(
+                speed=1.2, 
+            ),
         ),
         push_silence_after_stop=testing,
     )
