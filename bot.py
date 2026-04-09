@@ -1,0 +1,140 @@
+import os
+from typing import Optional
+
+from dotenv import load_dotenv
+from loguru import logger
+from pipecat.audio.vad.silero import SileroVADAnalyzer
+from pipecat.frames.frames import LLMRunFrame
+from pipecat.pipeline.pipeline import Pipeline
+from pipecat.pipeline.runner import PipelineRunner
+from pipecat.pipeline.task import PipelineParams, PipelineTask
+from pipecat.processors.aggregators.llm_context import LLMContext
+from pipecat.processors.aggregators.llm_response_universal import (
+    LLMContextAggregatorPair,
+    LLMUserAggregatorParams,
+)
+from pipecat.runner.types import RunnerArguments
+from pipecat.runner.utils import parse_telephony_websocket
+from src.services.twilio_service import get_call_info
+from pipecat.serializers.twilio import TwilioFrameSerializer
+from pipecat.services.cartesia.tts import CartesiaTTSService
+from pipecat.services.deepgram.stt import DeepgramSTTService
+from pipecat.services.openai.llm import OpenAILLMService
+from pipecat.transports.base_transport import BaseTransport
+from pipecat.transports.websocket.fastapi import (
+    FastAPIWebsocketParams,
+    FastAPIWebsocketTransport,
+)
+
+load_dotenv(override=True)
+
+
+async def run_bot(transport: BaseTransport, handle_sigint: bool, testing: bool):
+    llm = OpenAILLMService(
+        api_key=os.getenv("OPENAI_API_KEY"),
+        settings=OpenAILLMService.Settings(
+            model=os.getenv("OPENAI_MODEL", "gpt-4.1-nano"),
+            system_instruction="You are a helpful assistant in a voice conversation. Your responses will be spoken aloud, so avoid emojis, bullet points, or other formatting that can't be spoken. Always respond in Polish. Respond to what the user said in a creative, helpful, and brief way.",
+        ),
+    )
+
+    stt = DeepgramSTTService(
+        api_key=os.getenv("DEEPGRAM_API_KEY"),
+        settings=DeepgramSTTService.Settings(
+            language="pl",
+        ),
+    )
+
+    tts = CartesiaTTSService(
+        api_key=os.getenv("CARTESIA_API_KEY"),
+        settings=CartesiaTTSService.Settings(
+            voice=os.getenv("CARTESIA_VOICE_ID"),
+        ),
+        push_silence_after_stop=testing,
+    )
+
+    context = LLMContext()
+    user_aggregator, assistant_aggregator = LLMContextAggregatorPair(
+        context,
+        user_params=LLMUserAggregatorParams(
+            vad_analyzer=SileroVADAnalyzer(),
+        ),
+    )
+
+    pipeline = Pipeline(
+        [
+            transport.input(),
+            stt,
+            user_aggregator,
+            llm,
+            tts,
+            transport.output(),
+            assistant_aggregator,
+        ]
+    )
+
+    task = PipelineTask(
+        pipeline,
+        params=PipelineParams(
+            audio_in_sample_rate=8000,
+            audio_out_sample_rate=8000,
+            enable_metrics=True,
+            enable_usage_metrics=True,
+        ),
+    )
+
+    @transport.event_handler("on_client_connected")
+    async def on_client_connected(transport, client):
+        logger.info("Client connected, greeting user")
+        context.add_message({"role": "user", "content": "Please great user nicely, you name is Bred."})
+        await task.queue_frames([LLMRunFrame()])
+
+    @transport.event_handler("on_client_disconnected")
+    async def on_client_disconnected(transport, client):
+        await task.cancel()
+
+    # We use `handle_sigint=False` because `uvicorn` is controlling keyboard
+    # interruptions. We use `force_gc=True` to force garbage collection after
+    # the runner finishes running a task which could be useful for long running
+    # applications with multiple clients connecting.
+    runner = PipelineRunner(handle_sigint=handle_sigint, force_gc=True)
+
+    await runner.run(task)
+
+
+async def bot(runner_args: RunnerArguments, testing: Optional[bool] = False):
+    """Main bot entry point compatible with Pipecat Cloud."""
+
+    _, call_data = await parse_telephony_websocket(runner_args.websocket)
+
+    # Fetch call information from Twilio REST API
+    # With the call information, you can make a request to your API to get the user's information
+    # and inject that information into your bot's configuration.
+    call_info = await get_call_info(call_data["call_id"])
+    if call_info:
+        logger.info(f"Call from: {call_info.get('from_number')} to: {call_info.get('to_number')}")
+
+    serializer = TwilioFrameSerializer(
+        stream_sid=call_data["stream_id"],
+        call_sid=call_data["call_id"],
+        account_sid=os.getenv("TWILIO_ACCOUNT_SID", ""),
+        auth_token=os.getenv("TWILIO_AUTH_TOKEN", ""),
+    )
+
+    transport = FastAPIWebsocketTransport(
+        websocket=runner_args.websocket,
+        params=FastAPIWebsocketParams(
+            audio_in_enabled=True,
+            audio_out_enabled=True,
+            add_wav_header=False,
+            serializer=serializer,
+        ),
+    )
+
+    await run_bot(transport, runner_args.handle_sigint, testing)
+
+
+if __name__ == "__main__":
+    from pipecat.runner.run import main
+
+    main()

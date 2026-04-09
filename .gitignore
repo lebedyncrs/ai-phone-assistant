@@ -1,8 +1,6 @@
-.venv
-storage
 .env
+.venv
+__pycache__/
+*.pyc
 .DS_Store
-__pycache__
-providers/__pycache__
-traefik/acme.json
-logs/
+
