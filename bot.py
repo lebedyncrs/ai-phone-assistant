@@ -105,7 +105,8 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, testing: bool, 
     async def on_client_connected(transport, client):
         logger.info("Client connected, greeting user")
         from_number = call_info.from_number if call_info else "unknown"
-        asyncio.create_task(send_message(f"📞 Call started from: {from_number}"))
+        forwarded_from = call_info.forwarded_from if call_info else "unknown"
+        asyncio.create_task(send_message(f"📞 Call started from: {from_number}, forwarded from: {forwarded_from}"))
         await task.queue_frames([LLMRunFrame()])
 
     @transport.event_handler("on_client_disconnected")
