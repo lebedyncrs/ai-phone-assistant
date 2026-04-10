@@ -43,7 +43,7 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, testing: bool, 
     llm = OpenAILLMService(
         api_key=os.getenv("OPENAI_API_KEY"),
         settings=OpenAILLMService.Settings(
-            model=os.getenv("OPENAI_MODEL", "gpt-4.1-nano"),
+            model=os.getenv("OPENAI_MODEL", "gpt-4.1-mini"),
             system_instruction=SYSTEM_INSTRUCTION,
         ),
     )
@@ -98,8 +98,8 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, testing: bool, 
         ),
     )
 
-    # context.set_tools(TOOLS_SCHEMA)
-    # register_tools(llm, task, context)
+    context.set_tools(TOOLS_SCHEMA)
+    register_tools(llm, task, context)
 
     @transport.event_handler("on_client_connected")
     async def on_client_connected(transport, client):
