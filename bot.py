@@ -4,7 +4,7 @@ from typing import Optional, cast
 
 from dotenv import load_dotenv
 from loguru import logger
-from pipecat.audio.vad.silero import SileroVADAnalyzer
+from pipecat.audio.vad.silero import SileroVADAnalyzer, VADParams
 from pipecat.frames.frames import LLMRunFrame
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
@@ -16,6 +16,7 @@ from pipecat.processors.aggregators.llm_response_universal import (
 )
 from pipecat.runner.types import RunnerArguments
 from pipecat.services.cartesia.tts import GenerationConfig
+from src.llm_tools import TOOLS_SCHEMA, register_tools
 from src.prompts import SYSTEM_INSTRUCTION
 from src.services.open_api_service import summarize_conversation
 from src.services.telegram_service import send_message
@@ -71,7 +72,7 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, testing: bool, 
     user_aggregator, assistant_aggregator = LLMContextAggregatorPair(
         context,
         user_params=LLMUserAggregatorParams(
-            vad_analyzer=SileroVADAnalyzer(),
+            vad_analyzer=SileroVADAnalyzer(params=VADParams(stop_secs=1.0))
         ),
     )
 
@@ -96,6 +97,9 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, testing: bool, 
             enable_usage_metrics=True,
         ),
     )
+
+    # context.set_tools(TOOLS_SCHEMA)
+    # register_tools(llm, task, context)
 
     @transport.event_handler("on_client_connected")
     async def on_client_connected(transport, client):
