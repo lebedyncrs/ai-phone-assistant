@@ -42,7 +42,7 @@ from src.dto.call_data import CallData
 load_dotenv(override=True)
 
 
-async def run_bot(transport: BaseTransport, handle_sigint: bool, testing: bool, call_info: Optional[CallInfo] = None):
+async def run_bot(transport: BaseTransport, handle_sigint: bool, testing: bool, call_info: Optional[CallInfo] = None, call_sid: Optional[str] = None):
     llm = OpenAILLMService(
         api_key=os.getenv("OPENAI_API_KEY"),
         settings=OpenAILLMService.Settings(
@@ -105,7 +105,7 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, testing: bool, 
     )
 
     context.set_tools(TOOLS_SCHEMA)
-    register_tools(llm, task, context)
+    register_tools(llm, task, context, call_sid=call_sid)
 
     @audiobuffer.event_handler("on_audio_data")
     async def on_audio_data(buffer, audio, sample_rate, num_channels):
@@ -197,7 +197,7 @@ async def bot(runner_args: RunnerArguments, testing: Optional[bool] = False):
         ),
     )
 
-    await run_bot(transport, runner_args.handle_sigint, testing, call_info)
+    await run_bot(transport, runner_args.handle_sigint, testing, call_info, call_sid=call_data["call_id"])
 
 
 if __name__ == "__main__":

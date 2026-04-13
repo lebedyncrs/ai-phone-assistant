@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Optional
+
 from loguru import logger
 from pipecat.adapters.schemas.function_schema import FunctionSchema
 from pipecat.adapters.schemas.tools_schema import ToolsSchema
@@ -9,6 +11,7 @@ from pipecat.frames.frames import EndFrame
 from pipecat.pipeline.task import PipelineTask
 from pipecat.processors.aggregators.llm_context import LLMContext
 from pipecat.services.llm_service import FunctionCallParams
+from src.services.twilio_service import hangup_call
 
 END_CALL_TOOL_NAME = "end_call"
 
@@ -27,7 +30,7 @@ TOOLS_SCHEMA = ToolsSchema(
 MIN_MESSAGES_BEFORE_END_CALL = 3
 
 
-def register_tools(llm, task: PipelineTask, context: LLMContext) -> None:
+def register_tools(llm, task: PipelineTask, context: LLMContext, call_sid: Optional[str] = None) -> None:
     """Register all LLM tool handlers."""
     _end_call_triggered = False
 
@@ -46,8 +49,10 @@ def register_tools(llm, task: PipelineTask, context: LLMContext) -> None:
             await params.result_callback(None)
             return
         _end_call_triggered = True
-        logger.info(f"end_call triggered after {message_count} messages — cancelling pipeline task")
+        logger.info(f"end_call triggered after {message_count} messages — ending call")
         await params.result_callback(None)
+        if call_sid:
+            await hangup_call(call_sid)
         await task.queue_frame(EndFrame())
 
     llm.register_function(END_CALL_TOOL_NAME, handle_end_call)
