@@ -1,4 +1,6 @@
 import asyncio
+import io
+import wave
 import os
 from typing import Optional, cast
 
@@ -14,12 +16,13 @@ from pipecat.processors.aggregators.llm_response_universal import (
     LLMContextAggregatorPair,
     LLMUserAggregatorParams,
 )
+from pipecat.processors.audio.audio_buffer_processor import AudioBufferProcessor
 from pipecat.runner.types import RunnerArguments
 from pipecat.services.cartesia.tts import GenerationConfig
 from src.llm_tools import TOOLS_SCHEMA, register_tools
 from src.prompts import SYSTEM_INSTRUCTION
 from src.services.open_api_service import summarize_conversation
-from src.services.telegram_service import send_message
+from src.services.telegram_service import send_message, send_voice
 
 from pipecat.runner.utils import parse_telephony_websocket
 from src.dto.call_info import CallInfo
@@ -43,7 +46,7 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, testing: bool, 
     llm = OpenAILLMService(
         api_key=os.getenv("OPENAI_API_KEY"),
         settings=OpenAILLMService.Settings(
-            model=os.getenv("OPENAI_MODEL", "gpt-4.1-mini"),
+            model=os.getenv("OPENAI_MODEL", "gpt-4.1"),
             system_instruction=SYSTEM_INSTRUCTION,
         ),
     )
@@ -68,6 +71,8 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, testing: bool, 
         push_silence_after_stop=testing,
     )
 
+    audiobuffer = AudioBufferProcessor(num_channels=1)
+
     context = LLMContext()
     user_aggregator, assistant_aggregator = LLMContextAggregatorPair(
         context,
@@ -85,6 +90,7 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, testing: bool, 
             tts,
             transport.output(),
             assistant_aggregator,
+            audiobuffer,
         ]
     )
 
@@ -101,16 +107,32 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, testing: bool, 
     context.set_tools(TOOLS_SCHEMA)
     register_tools(llm, task, context)
 
+    @audiobuffer.event_handler("on_audio_data")
+    async def on_audio_data(buffer, audio, sample_rate, num_channels):
+        buf = io.BytesIO()
+        with wave.open(buf, "wb") as wf:
+            wf.setnchannels(num_channels)
+            wf.setsampwidth(2)
+            wf.setframerate(sample_rate)
+            wf.writeframes(audio)
+        from_number = call_info.from_number if call_info else "unknown"
+        try:
+            await send_voice(buf.getvalue(), f"📼 Recording ({from_number})")
+        except Exception as e:
+            logger.error(f"Failed to send recording: {e}")
+
     @transport.event_handler("on_client_connected")
     async def on_client_connected(transport, client):
         logger.info("Client connected, greeting user")
         from_number = call_info.from_number if call_info else "unknown"
         forwarded_from = call_info.forwarded_from if call_info else "unknown"
         asyncio.create_task(send_message(f"📞 Call started from: {from_number}, forwarded from: {forwarded_from}"))
+        await audiobuffer.start_recording()
         await task.queue_frames([LLMRunFrame()])
 
     @transport.event_handler("on_client_disconnected")
     async def on_client_disconnected(transport, client) -> None:
+        await audiobuffer.stop_recording()
         try:
             messages = context.get_messages()
             if messages:

@@ -5,6 +5,7 @@ from __future__ import annotations
 from loguru import logger
 from pipecat.adapters.schemas.function_schema import FunctionSchema
 from pipecat.adapters.schemas.tools_schema import ToolsSchema
+from pipecat.frames.frames import EndFrame
 from pipecat.pipeline.task import PipelineTask
 from pipecat.processors.aggregators.llm_context import LLMContext
 from pipecat.services.llm_service import FunctionCallParams
@@ -47,6 +48,6 @@ def register_tools(llm, task: PipelineTask, context: LLMContext) -> None:
         _end_call_triggered = True
         logger.info(f"end_call triggered after {message_count} messages — cancelling pipeline task")
         await params.result_callback(None)
-        await task.cancel()
+        await task.queue_frame(EndFrame())
 
     llm.register_function(END_CALL_TOOL_NAME, handle_end_call)
