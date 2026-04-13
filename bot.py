@@ -7,7 +7,7 @@ from typing import Optional, cast
 from dotenv import load_dotenv
 from loguru import logger
 from pipecat.audio.vad.silero import SileroVADAnalyzer, VADParams
-from pipecat.frames.frames import LLMRunFrame
+from pipecat.frames.frames import Frame, LLMRunFrame, TranscriptionFrame
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.task import PipelineParams, PipelineTask
@@ -17,6 +17,7 @@ from pipecat.processors.aggregators.llm_response_universal import (
     LLMUserAggregatorParams,
 )
 from pipecat.processors.audio.audio_buffer_processor import AudioBufferProcessor
+from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 from pipecat.runner.types import RunnerArguments
 from pipecat.services.cartesia.tts import GenerationConfig
 from src.llm_tools import TOOLS_SCHEMA, register_tools
@@ -40,6 +41,26 @@ from pipecat.transports.websocket.fastapi import (
 from src.dto.call_data import CallData
 
 load_dotenv(override=True)
+
+STT_MIN_CONFIDENCE = 0.65
+
+
+class STTConfidenceFilter(FrameProcessor):
+    """Drops TranscriptionFrames whose Deepgram confidence falls below the threshold."""
+
+    async def process_frame(self, frame: Frame, direction: FrameDirection):
+        if isinstance(frame, TranscriptionFrame) and frame.result is not None:
+            try:
+                confidence = frame.result.channel.alternatives[0].confidence
+                if confidence < STT_MIN_CONFIDENCE:
+                    logger.debug(
+                        f"STTConfidenceFilter: dropped '{frame.text}' "
+                        f"(confidence={confidence:.2f} < {STT_MIN_CONFIDENCE})"
+                    )
+                    return
+            except (AttributeError, IndexError):
+                pass
+        await self.push_frame(frame, direction)
 
 
 async def run_bot(transport: BaseTransport, handle_sigint: bool, testing: bool, call_info: Optional[CallInfo] = None, call_sid: Optional[str] = None):
@@ -77,7 +98,7 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, testing: bool, 
     user_aggregator, assistant_aggregator = LLMContextAggregatorPair(
         context,
         user_params=LLMUserAggregatorParams(
-            vad_analyzer=SileroVADAnalyzer(params=VADParams(stop_secs=1.0))
+            vad_analyzer=SileroVADAnalyzer(params=VADParams(stop_secs=0.2))
         ),
     )
 
@@ -85,6 +106,7 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, testing: bool, 
         [
             transport.input(),
             stt,
+            STTConfidenceFilter(),
             user_aggregator,
             llm,
             tts,
