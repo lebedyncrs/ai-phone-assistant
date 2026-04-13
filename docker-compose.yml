@@ -1,4 +1,14 @@
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - ./redis_data:/data
+    restart: unless-stopped
+    networks:
+      - voice-assistant
+
   voice-assistant:
     build:
       context: .
@@ -8,17 +18,41 @@ services:
       - "7860:7860"
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4.1}
       - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY}
-      - CARTESIA_API_KEY=${CARTESIA_API_KEY}
-      - CARTESIA_VOICE_ID=${CARTESIA_VOICE_ID}
-      - CARTESIA_LANGUAGE=${CARTESIA_LANGUAGE:-pl}
-      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4.1-nano}
+      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
+      - ELEVENLABS_VOICE_ID=${ELEVENLABS_VOICE_ID:-hhcunOPFbv3HrnH63y3j}
+      - ELEVENLABS_MODEL=${ELEVENLABS_MODEL:-eleven_flash_v2_5}
       - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
       - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - REDIS_URL=redis://redis:6379
     env_file:
       - .env
+    depends_on:
+      - redis
+    restart: unless-stopped
+    networks:
+      - voice-assistant
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: scheduler
+    command: ["uv", "run", "scheduler.py"]
+    environment:
+      - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY}
+      - DEEPGRAM_PROJECT_ID=${DEEPGRAM_PROJECT_ID}
+      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - REDIS_URL=redis://redis:6379
+    env_file:
+      - .env
+    depends_on:
+      - redis
     restart: unless-stopped
     networks:
       - voice-assistant
