@@ -20,7 +20,7 @@ COPY uv.lock pyproject.toml ./
 RUN uv sync --locked --no-install-project --no-dev
 
 # Copy the application code
-COPY bot.py ./
+COPY bot.py scheduler.py ./
 COPY src/ ./src/
 
 # Expose the port (Pipecat runner default)

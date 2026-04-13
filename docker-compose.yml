@@ -20,9 +20,9 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4.1}
       - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY}
-      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
-      - ELEVENLABS_VOICE_ID=${ELEVENLABS_VOICE_ID:-hhcunOPFbv3HrnH63y3j}
-      - ELEVENLABS_MODEL=${ELEVENLABS_MODEL:-eleven_flash_v2_5}
+      - CARTESIA_API_KEY=${CARTESIA_API_KEY}
+      - CARTESIA_VOICE_ID=${CARTESIA_VOICE_ID}
+      - CARTESIA_LANGUAGE=${CARTESIA_LANGUAGE:-pl}
       - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
       - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
@@ -30,6 +30,10 @@ services:
       - REDIS_URL=redis://redis:6379
     env_file:
       - .env
+    volumes:
+      - ./bot.py:/app/bot.py
+      - ./src:/app/src
+      - ./scheduler.py:/app/scheduler.py
     depends_on:
       - redis
     restart: unless-stopped
@@ -51,6 +55,9 @@ services:
       - REDIS_URL=redis://redis:6379
     env_file:
       - .env
+    volumes:
+      - ./scheduler.py:/app/scheduler.py
+      - ./src:/app/src
     depends_on:
       - redis
     restart: unless-stopped
