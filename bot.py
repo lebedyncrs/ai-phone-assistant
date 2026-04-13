@@ -49,6 +49,7 @@ class STTConfidenceFilter(FrameProcessor):
     """Drops TranscriptionFrames whose Deepgram confidence falls below the threshold."""
 
     async def process_frame(self, frame: Frame, direction: FrameDirection):
+        await super().process_frame(frame, direction)
         if isinstance(frame, TranscriptionFrame) and frame.result is not None:
             try:
                 confidence = frame.result.channel.alternatives[0].confidence
