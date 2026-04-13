@@ -19,7 +19,7 @@ TOOLS_SCHEMA = ToolsSchema(
     standard_tools=[
         FunctionSchema(
             name=END_CALL_TOOL_NAME,
-            description="Kończy rozmowę telefoniczną. WYWOŁAJ TYLKO gdy: (1) dzwoniący potwierdził że nie potrzebuje nic więcej (np. 'Nie, dziękuję', 'To wszystko', 'Do widzenia') ORAZ (2) bot już wypowiedział frazę pożegnalną. NIGDY nie wywołuj na początku rozmowy ani przed zebraniem informacji od dzwoniącego.",
+            description="Kończy rozmowę telefoniczną. WYWOŁAJ W TEJ SAMEJ ODPOWIEDZI co fraza pożegnalna (np. 'Do usłyszenia', 'Dziękuję i do widzenia'), gdy dzwoniący potwierdził że nie potrzebuje już nic więcej. NIE czekaj na kolejną turę — wywołaj narzędzie jednocześnie z pożegnaniem. NIGDY nie wywołuj na początku rozmowy ani przed zebraniem informacji.",
             properties={},
             required=[],
         ),
