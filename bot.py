@@ -7,7 +7,7 @@ from typing import Optional, cast
 from dotenv import load_dotenv
 from loguru import logger
 from pipecat.audio.vad.silero import SileroVADAnalyzer, VADParams
-from pipecat.frames.frames import Frame, LLMRunFrame, TranscriptionFrame
+from pipecat.frames.frames import LLMRunFrame
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.task import PipelineParams, PipelineTask
@@ -17,11 +17,11 @@ from pipecat.processors.aggregators.llm_response_universal import (
     LLMUserAggregatorParams,
 )
 from pipecat.processors.audio.audio_buffer_processor import AudioBufferProcessor
-from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 from pipecat.runner.types import RunnerArguments
-from pipecat.services.cartesia.tts import GenerationConfig
+from src.config import build_llm, build_stt, build_tts
+from src.processors.llm_response_logger import LLMResponseLogger
+from src.processors.stt_confidence_filter import STTConfidenceFilter
 from src.llm_tools import TOOLS_SCHEMA, register_tools
-from src.prompts import SYSTEM_INSTRUCTION
 from src.services.open_api_service import summarize_conversation
 from src.services.telegram_service import send_message, send_voice
 
@@ -29,9 +29,6 @@ from pipecat.runner.utils import parse_telephony_websocket
 from src.dto.call_info import CallInfo
 from src.services.twilio_service import get_call_info
 from pipecat.serializers.twilio import TwilioFrameSerializer
-from pipecat.services.cartesia.tts import CartesiaTTSService
-from pipecat.services.deepgram.stt import DeepgramSTTService
-from pipecat.services.openai.llm import OpenAILLMService
 from pipecat.transports.base_transport import BaseTransport
 from pipecat.transports.websocket.fastapi import (
     FastAPIWebsocketParams,
@@ -42,56 +39,11 @@ from src.dto.call_data import CallData
 
 load_dotenv(override=True)
 
-STT_MIN_CONFIDENCE = 0.65
-
-
-class STTConfidenceFilter(FrameProcessor):
-    """Drops TranscriptionFrames whose Deepgram confidence falls below the threshold."""
-
-    async def process_frame(self, frame: Frame, direction: FrameDirection):
-        await super().process_frame(frame, direction)
-        if isinstance(frame, TranscriptionFrame) and frame.result is not None:
-            try:
-                confidence = frame.result.channel.alternatives[0].confidence
-                if confidence < STT_MIN_CONFIDENCE:
-                    logger.debug(
-                        f"STTConfidenceFilter: dropped '{frame.text}' "
-                        f"(confidence={confidence:.2f} < {STT_MIN_CONFIDENCE})"
-                    )
-                    return
-            except (AttributeError, IndexError):
-                pass
-        await self.push_frame(frame, direction)
-
 
 async def run_bot(transport: BaseTransport, handle_sigint: bool, testing: bool, call_info: Optional[CallInfo] = None, call_sid: Optional[str] = None):
-    llm = OpenAILLMService(
-        api_key=os.getenv("OPENAI_API_KEY"),
-        settings=OpenAILLMService.Settings(
-            model=os.getenv("OPENAI_MODEL", "gpt-4.1"),
-            system_instruction=SYSTEM_INSTRUCTION,
-        ),
-    )
-
-    stt = DeepgramSTTService(
-        api_key=os.getenv("DEEPGRAM_API_KEY", ""),
-        settings=DeepgramSTTService.Settings(
-            language="pl",
-        ),
-    )
-
-    tts = CartesiaTTSService(
-        api_key=os.getenv("CARTESIA_API_KEY", ""),
-        settings=CartesiaTTSService.Settings(
-            voice=os.getenv("CARTESIA_VOICE_ID", ""),
-            model="sonic-3",
-            language=os.getenv("CARTESIA_LANGUAGE", "pl"),
-            generation_config=GenerationConfig(
-                speed=1.2,
-            ),
-        ),
-        push_silence_after_stop=testing,
-    )
+    llm = build_llm()
+    stt = build_stt()
+    tts = build_tts(testing)
 
     audiobuffer = AudioBufferProcessor(num_channels=1)
 
@@ -110,6 +62,7 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, testing: bool, 
             STTConfidenceFilter(),
             user_aggregator,
             llm,
+            LLMResponseLogger(),
             tts,
             transport.output(),
             assistant_aggregator,
