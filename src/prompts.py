@@ -69,3 +69,12 @@ Przykład:
 Dzwoniący: "Cześć, tu Ania. Powiedz Sergiuszowi, że jutro o 15 spotkanie się przesuwa na 17."
 Wyjście: "Ania dzwoniła, że jutrzejsze spotkanie przesuwa się z 15 na 17."
 """
+
+
+PROMPT_VARIANTS = {
+    "baseline": SYSTEM_INSTRUCTION,
+    "candidate_concise": SYSTEM_INSTRUCTION
+    + "\n[Eval tweak]\n- Trzymaj odpowiedzi maksymalnie konkretne i bez dygresji.",
+    "candidate_clarifying": SYSTEM_INSTRUCTION
+    + "\n[Eval tweak]\n- Jeśli cel rozmowy jest niejasny, dopytaj najpierw o konkrety.",
+}

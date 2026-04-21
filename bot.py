@@ -24,6 +24,7 @@ from src.processors.stt_confidence_filter import STTConfidenceFilter
 from src.llm_tools import TOOLS_SCHEMA, register_tools
 from src.services.open_api_service import summarize_conversation
 from src.services.telegram_service import send_message, send_voice
+from src.tracing import init_tracing, tracing_context
 
 from pipecat.runner.utils import parse_telephony_websocket
 from src.dto.call_info import CallInfo
@@ -41,6 +42,9 @@ load_dotenv(override=True)
 
 
 async def run_bot(transport: BaseTransport, handle_sigint: bool, testing: bool, call_info: Optional[CallInfo] = None, call_sid: Optional[str] = None):
+    tracing_enabled = init_tracing()
+    conversation_id, additional_span_attributes = tracing_context(call_sid)
+
     llm = build_llm()
     stt = build_stt()
     tts = build_tts(testing)
@@ -78,6 +82,10 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, testing: bool, 
             enable_metrics=True,
             enable_usage_metrics=True,
         ),
+        enable_tracing=tracing_enabled,
+        enable_turn_tracking=tracing_enabled,
+        conversation_id=conversation_id,
+        additional_span_attributes=additional_span_attributes,
     )
 
     context.set_tools(TOOLS_SCHEMA)
