@@ -7,7 +7,7 @@ from typing import Optional
 from loguru import logger
 from pipecat.adapters.schemas.function_schema import FunctionSchema
 from pipecat.adapters.schemas.tools_schema import ToolsSchema
-from pipecat.frames.frames import EndFrame, TTSSpeakFrame
+from pipecat.frames.frames import EndFrame
 from pipecat.pipeline.task import PipelineTask
 from pipecat.processors.aggregators.llm_context import LLMContext
 from pipecat.services.llm_service import FunctionCallParams
@@ -50,7 +50,6 @@ def register_tools(llm, task: PipelineTask, context: LLMContext, call_sid: Optio
         _end_call_triggered = True
         logger.info(f"end_call triggered after {message_count} messages — ending call")
         await params.result_callback(None)
-        await task.queue_frame(TTSSpeakFrame("Dziękuję, do usłyszenia."))
         await task.queue_frame(EndFrame())
 
     llm.register_function(END_CALL_TOOL_NAME, handle_end_call)

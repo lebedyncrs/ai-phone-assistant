@@ -7,7 +7,6 @@ from typing import Optional, cast
 from dotenv import load_dotenv
 from loguru import logger
 from pipecat.audio.vad.silero import SileroVADAnalyzer, VADParams
-from pipecat.frames.frames import LLMRunFrame
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.task import PipelineParams, PipelineTask
@@ -16,6 +15,7 @@ from pipecat.processors.aggregators.llm_response_universal import (
     LLMContextAggregatorPair,
     LLMUserAggregatorParams,
 )
+from pipecat.turns.user_mute.always_user_mute_strategy import AlwaysUserMuteStrategy
 from pipecat.processors.audio.audio_buffer_processor import AudioBufferProcessor
 from pipecat.runner.types import RunnerArguments
 from src.config import build_llm, build_stt, build_tts
@@ -24,7 +24,7 @@ from src.processors.stt_confidence_filter import STTConfidenceFilter
 from src.llm_tools import TOOLS_SCHEMA, register_tools
 from src.services.open_api_service import summarize_conversation
 from src.services.telegram_service import send_message, send_voice
-from src.tracing import init_tracing, tracing_context
+from src.tracing import build_tracing_session, init_tracing, tracing_session_context
 
 from pipecat.runner.utils import parse_telephony_websocket
 from src.dto.call_info import CallInfo
@@ -39,11 +39,19 @@ from pipecat.transports.websocket.fastapi import (
 from src.dto.call_data import CallData
 
 load_dotenv(override=True)
+init_tracing()
 
 
 async def run_bot(transport: BaseTransport, handle_sigint: bool, testing: bool, call_info: Optional[CallInfo] = None, call_sid: Optional[str] = None):
     tracing_enabled = init_tracing()
-    conversation_id, additional_span_attributes = tracing_context(call_sid)
+    user_id = call_info.from_number if call_info else None
+    tracing_session = build_tracing_session(call_sid, user_id=user_id)
+    conversation_id = tracing_session.session_id if tracing_session else None
+    additional_span_attributes: dict[str, str] | None = None
+    if tracing_session:
+        additional_span_attributes = {"session.id": tracing_session.session_id}
+        if call_sid:
+            additional_span_attributes["call.sid"] = call_sid
 
     llm = build_llm()
     stt = build_stt()
@@ -55,7 +63,8 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, testing: bool, 
     user_aggregator, assistant_aggregator = LLMContextAggregatorPair(
         context,
         user_params=LLMUserAggregatorParams(
-            vad_analyzer=SileroVADAnalyzer(params=VADParams(stop_secs=0.2))
+            vad_analyzer=SileroVADAnalyzer(params=VADParams(stop_secs=0.2)),
+            user_mute_strategies=[AlwaysUserMuteStrategy()],
         ),
     )
 
@@ -82,7 +91,7 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, testing: bool, 
             enable_metrics=True,
             enable_usage_metrics=True,
         ),
-        enable_tracing=tracing_enabled,
+        enable_tracing=False,
         enable_turn_tracking=tracing_enabled,
         conversation_id=conversation_id,
         additional_span_attributes=additional_span_attributes,
@@ -107,12 +116,11 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, testing: bool, 
 
     @transport.event_handler("on_client_connected")
     async def on_client_connected(transport, client):
-        logger.info("Client connected, greeting user")
+        logger.info("Client connected, waiting for caller")
         from_number = call_info.from_number if call_info else "unknown"
         forwarded_from = call_info.forwarded_from if call_info else "unknown"
         asyncio.create_task(send_message(f"📞 Call started from: {from_number}, forwarded from: {forwarded_from}"))
         await audiobuffer.start_recording()
-        await task.queue_frames([LLMRunFrame()])
 
     @transport.event_handler("on_client_disconnected")
     async def on_client_disconnected(transport, client) -> None:
@@ -133,7 +141,8 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, testing: bool, 
     # applications with multiple clients connecting.
     runner = PipelineRunner(handle_sigint=handle_sigint, force_gc=True)
 
-    await runner.run(task)
+    with tracing_session_context(tracing_session):
+        await runner.run(task)
 
 
 async def bot(runner_args: RunnerArguments, testing: Optional[bool] = False):

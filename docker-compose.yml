@@ -28,8 +28,14 @@ services:
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
       - REDIS_URL=redis://redis:6379
+      # webrtc = browser UI at http://localhost:7860/client; twilio = phone calls
+      - PIPECAT_TRANSPORT=${PIPECAT_TRANSPORT:-webrtc}
     env_file:
       - .env
+    command:
+      - sh
+      - -c
+      - uv run bot.py -t "$$PIPECAT_TRANSPORT" --host 0.0.0.0 --port 7860 -v
     volumes:
       - ./bot.py:/app/bot.py
       - ./src:/app/src
